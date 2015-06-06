@@ -18,7 +18,7 @@ SEARCH_RESULTS_ARRAY_KEY = "hits"
 
 ARTIST_KEY = "artist"
 
-ARTIST_FORMAT = "?text_format=plain" #TODO - make customizable. Genius formats: plain, html, DOM
+TEXT_FORMAT = "?text_format=plain" #TODO - make customizable. Genius formats: plain, html, DOM
 
 PLAINTEXT_DESCRIPTION_KEY = "plain"
 
@@ -69,7 +69,10 @@ class _searchResult:
 		self.title = data[_searchResult.title]
 		self.pyongs_count = data[_searchResult.pyongsCount]
 		self.updated_by_human_at = data[_searchResult.updatedByHumans]
-		self.artist = _searchResultArtist(data[_searchResult.primaryArtist], self.opener)
+		artistData = data[_searchResult.primaryArtist]
+
+
+		self.artist = Artist(data=artistData, opener=self.opener)
 		self.id = data[_searchResult._id]
 		self.url = data[_searchResult.url]
 
@@ -85,40 +88,15 @@ class _searchResult:
 	def getArtist(self):
 		return self.artist.getArtist()
 
-class _searchResultArtist:
-	imageUrl = "image_url"
-	name = "name"
-	_id = "id"
-	url = "url"
-
-	def __init__(self, data, opener=None):
-		if not opener:
-			opener = build_opener()
-		self.opener = opener
-
-		self.image_url = data[_searchResultArtist.imageUrl]
-		self.name = data[_searchResultArtist.name]
-		self.id = data[_searchResultArtist._id]
-		self.url = data[_searchResultArtist.url]
-
-	def __unicode__(self):
-		return "<_searchResultArtist" + self.name +">"
-
-	def getArtist(self):
-		return Artist(self.id)
-
 
 class Song:
-
 
 	def __init__(self, _id, opener=None):
 		if not opener:
 			opener = build_opener()
 		self.opener = opener
 
-		# TODO
-
-
+		
 class Artist:
 
 	description = "description"
@@ -127,21 +105,29 @@ class Artist:
 	_id = "id"
 	url = "url"
 
-	def __init__(self, _id, opener=None):
+	def __init__(self, _id=None, data=None, opener=None):
 		if not opener:
 			opener = build_opener()
 		self.opener = opener
 
-		requestUrl = ARTIST_BASE + str(_id) + ARTIST_FORMAT
-
-		data = json.loads(self.opener.open(requestUrl).read())[RESPONSE_KEY][ARTIST_KEY]
-
-		self._build(data)
+		if data:
+			self._buildFromData(data)
+		else:
+			data = self._getData()
+			requestUrl = ARTIST_BASE + str(_id) + TEXT_FORMAT
+			requestData = json.loads(self.opener.open(requestUrl).read())[RESPONSE_KEY][ARTIST_KEY]
+			self._buildFromData(data)
 		
 
-	def _build(self, data):
+	def _buildFromData(self, data):
 		# TODO -user stuff (new class)
-		self.description = data[Artist.description][PLAINTEXT_DESCRIPTION_KEY]
+		if Artist.description in data:
+			self.description = data[Artist.description][PLAINTEXT_DESCRIPTION_KEY]
+			self.descriptionAvailable = True
+		else:
+			self.descriptionAvailable = False
+			self.description = None
+
 		self.image_url = data[Artist.imageUrl]
 		self.name = data[Artist.name]
 		self.id = data[Artist._id]
@@ -149,13 +135,27 @@ class Artist:
 
 		#What are tracking paths?
 
+	def _getData(self):
+		requestUrl = ARTIST_BASE + str(self.id) + TEXT_FORMAT
+		requestData = json.loads(self.opener.open(requestUrl).read())[RESPONSE_KEY][ARTIST_KEY]
+		return requestData
+
+
+	def getDescription(self):
+		#blocking if unavailable
+		if not self.descriptionAvailable:
+			data = self._getData()
+			self.description = data[Artist.description][PLAINTEXT_DESCRIPTION_KEY]
+			self.descriptionAvailable = True
+
+		return self.description
 
 	def __unicode__(self):
 		return self.name
 
-
-g = Genius()
-for r in g.search("Zion I"):
-	print r.__unicode__()
-	print r.getArtist().__unicode__()
+if __name__ == "__main__":
+	g = Genius()
+	for r in g.search("Zion I"):
+		print r.__unicode__()
+		print r.artist.__unicode__()
 
